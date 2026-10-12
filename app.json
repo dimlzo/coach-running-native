@@ -1,0 +1,13 @@
+{
+  "expo": {
+    "name": "Mon Coach Running",
+    "slug": "coach-running",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0A0910",
+    "android": {
+      "package": "com.dim.coachrunning"
+    }
+  }
+}
