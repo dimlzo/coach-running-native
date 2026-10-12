@@ -5,9 +5,13 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
-    "backgroundColor": "#0A0910",
+    "icon": "./assets/icon.png",
     "android": {
-      "package": "com.dim.coachrunning"
+      "package": "com.dim.coachrunning",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#0A0910"
+      }
     }
   }
 }
