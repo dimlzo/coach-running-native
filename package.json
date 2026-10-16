@@ -7,14 +7,15 @@
     "android": "expo run:android"
   },
   "dependencies": {
-    "expo": "~55.0.0",
-    "expo-status-bar": "~3.0.9",
-    "expo-linear-gradient": "~15.0.8",
     "@expo/vector-icons": "^15.0.3",
     "@react-native-async-storage/async-storage": "2.2.0",
-    "react-native-safe-area-context": "~5.6.0",
-    "react": "19.1.0",
-    "react-native": "0.81.0"
+    "expo": "~55.0.0",
+    "expo-font": "~55.0.8",
+    "expo-linear-gradient": "~55.0.18",
+    "expo-status-bar": "~55.0.6",
+    "react": "19.2.0",
+    "react-native": "0.83.10",
+    "react-native-safe-area-context": "~5.6.0"
   },
   "private": true
 }
