@@ -114,7 +114,7 @@ Instance : `lfp-digital.app.n8n.cloud`. Trois workflows :
 ### 4.4 Frontends
 - **Web** (repo `coach-running-app`) : React + Vite, déployé sur **Vercel**.
   Historique mais **version de référence = l'app native** maintenant.
-- **Native** (repo `coach-running-native`) : **React Native / Expo**, SDK 55.
+- **Native** (repo `coach-running-native`) : **React Native / Expo**, SDK 57.
   C'est la version active, qu'on transforme en **vraie app (APK via EAS)**.
   Entrée : `App.js` (le code de référence vient de mes dernières modifs Snack).
 
@@ -144,19 +144,17 @@ Instance : `lfp-digital.app.n8n.cloud`. Trois workflows :
 
 ## 6. Design system (app)
 
-Direction **sobre & premium** (type Whoop/Oura) : fond sombre, **un seul accent
-violet**, typo à chiffres tabulaires, petits labels en majuscules espacées,
-tab bar icônes + libellés, **bulle de chat flottante** présente partout.
+**Refonte du 18 oct. 2026** : objectif « moins marqué IA ». Après deux tirages de
+pistes visuelles, choix de Dim : **le standard des apps de running, bien fait**
+(référence de qualité : **Strava**). Détail complet dans **`DESIGN.md`** (et
+`PRODUCT.md` pour le contexte produit) : les lire avant toute modif visuelle.
 
-```js
-const C = {
-  bg: "#0A0910", surface: "#141219", surfaceHi: "#1A1822",
-  line: "rgba(255,255,255,0.08)", text: "#F4F3F7",
-  sub: "#9E9BAA", faint: "#68656F", accent: "#8E86FF",
-};
-```
-Écrans : Accueil (prochaine séance en dégradé + « cette semaine » stats +
-mini-graph lundi→dimanche + dernière séance), Programme, Séances, Records, Chat.
+En bref : Material 3 sombre, cartes sans bordure (#121212 / #1E1E1E / #2A2A2A),
+**un seul orange maison #FF6A2B** (volontairement ≠ orange Strava) pour les actions,
+l'onglet actif et les barres de km ; Roboto, chiffres tabulaires, libellé au-dessus
+de la valeur ; barre d'onglets Material avec pastille, bouton chat flottant (FAB).
+**Interdit** : violet, dégradés, icône « sparkles », lueurs, petits labels en
+majuscules espacées.
 
 ---
 
@@ -173,6 +171,14 @@ mini-graph lundi→dimanche + dernière séance), Programme, Séances, Records, 
   **cache** (affichage instantané + badge « maj… »).
 - Versions SDK alignées (Expo Go redescendu au SDK 55 de Snack).
 - **Build EAS Android OK** → premier APK installable (16 oct. 2026).
+- **Passage au SDK 57** (18 oct.) pour tester avec l'Expo Go à jour du Play Store.
+- **Chat** : champ visible au-dessus du clavier (Android plein écran), saisie sur
+  plusieurs lignes, historique local qui n'est plus écrasé au démarrage
+  (choix : historique **local au téléphone seulement**).
+- **Refonte visuelle** (18 oct.) : voir section 6. Bouton Retour Android géré,
+  prochaine séance calculée d'après la date du jour, « tirer pour rafraîchir »
+  + rechargement au retour dans l'app, bandeau hors ligne / démo sur tous les
+  onglets, plus aucun faux record affiché.
 
 ---
 
@@ -209,8 +215,9 @@ npx eas-cli@latest build -p android --profile preview
 - **Sécuriser la `key=`** de la fonction Vercel (variable n8n au lieu de l'URL en clair).
 - **Records v2** : vrais best efforts Strava (via le détail d'activité).
 - Finaliser **icône / splash**.
-- Vérifier le libellé **« Cible »** (écran Programme + accueil).
-- Plus tard : pull-to-refresh, notifications.
+- **Rebuilder l'APK** avec la refonte (le dernier APK date d'avant).
+- Plus tard : notifications, suggestions rapides dans le chat.
+  (« Cible » : réglé, c'est une distance, affichée telle quelle.)
 
 ---
 

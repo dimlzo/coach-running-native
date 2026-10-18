@@ -8,49 +8,62 @@ import {
   KeyboardAvoidingView,
   Keyboard,
   ActivityIndicator,
+  BackHandler,
+  AppState,
+  RefreshControl,
 } from 'react-native';
 import {
   SafeAreaProvider,
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Ionicons } from "@expo/vector-icons";
-
-// mêmes icônes qu'avant, mais fournies d'office par Expo (rien à installer)
-const Home = (p) => <Ionicons name="home-outline" {...p} />;
-const CalendarDays = (p) => <Ionicons name="calendar-outline" {...p} />;
-const Activity = (p) => <Ionicons name="pulse-outline" {...p} />;
-const Trophy = (p) => <Ionicons name="trophy-outline" {...p} />;
-const MessageCircle = (p) => <Ionicons name="chatbubble-outline" {...p} />;
-const ArrowLeft = (p) => <Ionicons name="arrow-back" {...p} />;
-const Sparkles = (p) => <Ionicons name="sparkles-outline" {...p} />;
-const ChevronRight = (p) => <Ionicons name="chevron-forward" {...p} />;
+import { Ionicons } from '@expo/vector-icons';
 
 // ============================================================
 //  MON COACH RUNNING — version Expo (React Native)
-//  👉 Colle tes deux URLs de webhook n8n (les mêmes que le web) :
+//  Les deux URLs de webhook n8n (les mêmes que le web) :
 // ============================================================
 const N8N = {
   chat: 'https://lfp-digital.app.n8n.cloud/webhook/coach-chat', // ex: https://.../webhook/coach-chat
   data: 'https://lfp-digital.app.n8n.cloud/webhook/coach-data', // ex: https://.../webhook/coach-data
 };
 
+// Thème sombre « Material 3 » : fonds en paliers, un seul orange pour l'action.
 const C = {
-  bg: '#0A0910',
-  surface: '#141219',
-  surfaceHi: '#1A1822',
-  line: 'rgba(255,255,255,0.08)',
-  text: '#F4F3F7',
-  sub: '#9E9BAA',
-  faint: '#68656F',
-  accent: '#8E86FF',
+  bg: '#121212', // fond de l'app
+  surface: '#1E1E1E', // cartes
+  surfaceHi: '#2A2A2A', // bulles du coach, champ de saisie
+  nav: '#232323', // barre d'onglets
+  line: 'rgba(255,255,255,0.12)',
+  text: '#FFFFFF',
+  sub: '#B3B3B3',
+  faint: '#9E9E9E',
+  accent: '#FF6A2B', // orange maison (volontairement différent de celui de Strava)
+  accentSoft: 'rgba(255,106,43,0.16)',
+  onAccent: '#1A0E08', // texte posé sur l'orange
+  barVide: '#3A3A3A',
+};
+
+// Échelle typo (Roboto, la police système d'Android) : rôles Material 3.
+const T = {
+  titre: { fontSize: 24, fontWeight: '700', color: C.text },
+  titreCarte: { fontSize: 16, fontWeight: '700', color: C.text },
+  section: { fontSize: 16, fontWeight: '500', color: C.text },
+  corps: { fontSize: 16, lineHeight: 24, color: C.text },
+  second: { fontSize: 14, lineHeight: 20, color: C.sub },
+  label: { fontSize: 12, fontWeight: '500', color: C.sub },
+  chiffre: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: C.text,
+    fontVariant: ['tabular-nums'],
+  },
 };
 
 const isoLocal = (d) => {
   const x = new Date(d);
-  return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
+  return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
 };
 
 // ⚠️ Données de secours (si le webhook data n'est pas joignable)
@@ -86,30 +99,13 @@ const PROGRAMME_DEMO = [
     cible: '5:30',
   },
 ];
+// pas de faux records : sans données, on n'affiche que des « — »
 const RECORDS_DEMO = [
-  { label: '5 km', valeur: '22:30' },
-  { label: '10 km', valeur: '47:10' },
-  { label: 'Km total', valeur: '128' },
-  { label: 'Sorties', valeur: '17' },
+  { label: '5 km', valeur: '—' },
+  { label: '10 km', valeur: '—' },
 ];
 
-function Micro({ children, style }) {
-  return (
-    <Text
-      style={[
-        {
-          fontSize: 10.5,
-          letterSpacing: 1.4,
-          textTransform: 'uppercase',
-          color: C.faint,
-          fontWeight: '600',
-        },
-        style,
-      ]}>
-      {children}
-    </Text>
-  );
-}
+const DATE_SEMI = new Date('2026-11-08');
 
 export default function App() {
   return (
@@ -133,24 +129,24 @@ function CoachRunning() {
   const [seances, setSeances] = useState(SEANCES_DEMO);
   const [programme, setProgramme] = useState(PROGRAMME_DEMO);
   const [records, setRecords] = useState(RECORDS_DEMO);
-
-// Au lancement : on réaffiche tout de suite les dernières vraies données mémorisées
-useEffect(() => {
-  (async () => {
-    try {
-      const s = await AsyncStorage.getItem("coach_data");
-      if (s) {
-        const d = JSON.parse(s);
-        if (d.seances) setSeances(d.seances);
-        if (d.programme) setProgramme(d.programme);
-        if (d.records) setRecords(d.records);
-        setSource("Connecté");
-      }
-    } catch {}
-  })();
-}, []);
-
   const [source, setSource] = useState('…');
+  const aDuCache = useRef(false);
+
+  // Au lancement : on réaffiche tout de suite les dernières vraies données mémorisées
+  useEffect(() => {
+    (async () => {
+      try {
+        const s = await AsyncStorage.getItem('coach_data');
+        if (s) {
+          const d = JSON.parse(s);
+          if (d.seances) setSeances(d.seances);
+          if (d.programme) setProgramme(d.programme);
+          if (d.records) setRecords(d.records);
+          aDuCache.current = true;
+        }
+      } catch {}
+    })();
+  }, []);
 
   // HISTORIQUE : on recharge les derniers messages au démarrage.
   const [histoCharge, setHistoCharge] = useState(false);
@@ -174,36 +170,69 @@ useEffect(() => {
   }, [messages, histoCharge]);
 
   // DONNÉES : on va chercher tes vraies séances/records/programme.
-  useEffect(() => {
+  const [rafraichit, setRafraichit] = useState(false);
+  async function charger() {
     if (!N8N.data || N8N.data.startsWith('COLLE')) {
       setSource('Démo');
       return;
     }
-    (async () => {
-      setSource("MAJ en cours…");
-      try {
-        const d = await (await fetch(N8N.data)).json();
-        if (d.seances) setSeances(d.seances);
-        if (d.programme) setProgramme(d.programme);
-        if (d.records) setRecords(d.records);
-        await AsyncStorage.setItem("coach_data", JSON.stringify(d));
-        setSource('Connecté');
-      } catch {
-        setSource('Démo');
-      }
-    })();
+    setSource('MAJ en cours…');
+    try {
+      const d = await (await fetch(N8N.data)).json();
+      if (d.seances) setSeances(d.seances);
+      if (d.programme) setProgramme(d.programme);
+      if (d.records) setRecords(d.records);
+      await AsyncStorage.setItem('coach_data', JSON.stringify(d));
+      aDuCache.current = true;
+      setSource('Connecté');
+    } catch {
+      // pas de réseau : si on a des données mémorisées, ce sont les vraies
+      setSource(aDuCache.current ? 'Hors ligne' : 'Démo');
+    }
+  }
+  useEffect(() => {
+    charger();
+    // au retour dans l'app (ex. juste après une sortie), on recharge
+    const sub = AppState.addEventListener('change', (etat) => {
+      if (etat === 'active') charger();
+    });
+    return () => sub.remove();
   }, []);
+  async function tirerPourRafraichir() {
+    setRafraichit(true);
+    await charger();
+    setRafraichit(false);
+  }
+  const rafraichir = (
+    <RefreshControl
+      refreshing={rafraichit}
+      onRefresh={tirerPourRafraichir}
+      colors={[C.accent]}
+      progressBackgroundColor={C.surfaceHi}
+    />
+  );
+
+  // Bouton/geste « Retour » d'Android : on revient à l'accueil avant de quitter.
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (ecran === 'home') return false;
+      setEcran('home');
+      return true;
+    });
+    return () => sub.remove();
+  }, [ecran]);
 
   const estChat = ecran === 'chat';
 
   return (
     <View style={{ flex: 1, backgroundColor: C.bg, paddingTop: insets.top }}>
+      {!estChat && <EtatDonnees source={source} />}
       {ecran === 'home' && (
         <EcranHome
+          rafraichir={rafraichir}
           seances={seances}
           derniere={seances[0]}
-          prochaine={programme[0]}
-          source={source}
+          prochaine={programme[indexProchaine(programme)]}
           onProg={() => setEcran('programme')}
           onAnalyse={() => {
             const s = seances[0];
@@ -215,7 +244,9 @@ useEffect(() => {
         />
       )}
       {ecran === 'programme' && <EcranProgramme programme={programme} />}
-      {ecran === 'seances' && <EcranSeances seances={seances} />}
+      {ecran === 'seances' && (
+        <EcranSeances seances={seances} rafraichir={rafraichir} />
+      )}
       {ecran === 'records' && <EcranRecords records={records} />}
       {ecran === 'chat' && (
         <EcranChat
@@ -227,7 +258,7 @@ useEffect(() => {
         />
       )}
 
-      {!estChat && <BulleCoach onPress={() => setEcran('chat')} />}
+      {!estChat && <BoutonCoach onPress={() => setEcran('chat')} />}
       {!estChat && <BarreOnglets ecran={ecran} setEcran={setEcran} />}
     </View>
   );
@@ -236,151 +267,107 @@ useEffect(() => {
 // ============================================================
 //  HOME
 // ============================================================
-function EcranHome({ seances, derniere, prochaine, source, onProg, onAnalyse }) {
+function EcranHome({ seances, derniere, prochaine, rafraichir, onProg, onAnalyse }) {
   // --- Semaine en cours : lundi → dimanche ---
-const JOURS = ["L", "M", "M", "J", "V", "S", "D"];
-const now = new Date();
-const lundi = new Date(now);
-const decal = (now.getDay() + 6) % 7;            // 0 = lundi
-lundi.setDate(now.getDate() - decal);
-lundi.setHours(0, 0, 0, 0);
+  const JOURS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+  const now = new Date();
+  const lundi = new Date(now);
+  const decal = (now.getDay() + 6) % 7; // 0 = lundi
+  lundi.setDate(now.getDate() - decal);
+  lundi.setHours(0, 0, 0, 0);
 
-const semaine = JOURS.map((j, i) => {
-  const jour = new Date(lundi);
-  jour.setDate(lundi.getDate() + i);
-  const iso = isoLocal(jour);
-  const km = (seances || [])
-    .filter(s => s.date_iso === iso)
-    .reduce((t, s) => t + (s.distance || 0), 0);
-  const estAujourdhui = iso === isoLocal(now);
-  return { j, km, today: estAujourdhui };
-});
+  const semaine = JOURS.map((j, i) => {
+    const jour = new Date(lundi);
+    jour.setDate(lundi.getDate() + i);
+    const iso = isoLocal(jour);
+    const km = (seances || [])
+      .filter((s) => s.date_iso === iso)
+      .reduce((t, s) => t + (s.distance || 0), 0);
+    return { j, km, today: iso === isoLocal(now) };
+  });
 
-const totalKm = semaine.reduce((t, d) => t + d.km, 0).toFixed(1);
-const nbSeances = semaine.filter(d => d.km > 0).length;
-const jSemi = Math.max(0, Math.ceil((new Date("2026-11-08") - now) / 86400000)
-);
+  const totalKm = semaine.reduce((t, d) => t + d.km, 0);
+  const nbSeances = semaine.filter((d) => d.km > 0).length;
+  const jSemi = Math.max(0, Math.ceil((DATE_SEMI - now) / 86400000));
+  const maxKm = Math.max(...semaine.map((x) => x.km), 1);
 
   return (
     <ScrollView
       style={{ flex: 1 }}
-      contentContainerStyle={{ padding: 18, paddingBottom: 120 }}>
+      refreshControl={rafraichir}
+      contentContainerStyle={{ padding: 16, paddingBottom: 120 }}>
       <View
         style={{
           flexDirection: 'row',
           justifyContent: 'space-between',
-          alignItems: 'flex-start',
-          marginBottom: 20,
+          alignItems: 'center',
+          marginTop: 8,
+          marginBottom: 16,
         }}>
-        <View>
-          <Micro>Semi-marathon · 8 nov.</Micro>
-          <Text
-            style={{
-              fontSize: 25,
-              fontWeight: '800',
-              letterSpacing: -0.6,
-              color: C.text,
-              marginTop: 3,
-            }}>
-            Salut Dim
-          </Text>
-        </View>
-        <View style={{ flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: C.line, borderRadius: 999, paddingVertical: 3, paddingHorizontal: 9, marginTop: 4 }}>
-  {source === "MAJ en cours" && <ActivityIndicator size="small" color={C.sub} style={{ marginRight: 5, transform: [{ scale: 0.7 }] }} />}
-  <Text style={{ fontSize: 10.5, color: C.sub }}>{source === "MAJ en cours" ? "MAJ en cours" : source}</Text>
-</View>
+        <Text style={T.titre}>Salut Dim</Text>
+        <Puce>
+          Semi 8 nov. · <Text style={{ color: C.text, fontWeight: '700' }}>J-{jSemi}</Text>
+        </Puce>
       </View>
 
-      <Micro style={{ marginBottom: 8 }}>Dernière séance</Micro>
-      <View
-        style={{
-          borderWidth: 1,
-          borderColor: C.line,
-          borderRadius: 18,
-          padding: 16,
-          marginBottom: 22,
-          backgroundColor: C.surface,
-        }}>
-        <View
-          style={{
-            flexDirection: 'row',
-            justifyContent: 'space-between',
-            alignItems: 'baseline',
-          }}>
-          <Text style={{ fontSize: 15.5, fontWeight: '700', color: C.text }}>
-            {derniere?.type}
-          </Text>
-          <Text style={{ fontSize: 12.5, color: C.faint }}>
-            {derniere?.date}
-          </Text>
-        </View>
-        <View style={{ flexDirection: 'row', marginTop: 8 }}>
-          <Text style={{ fontSize: 13.5, color: C.sub, marginRight: 16 }}>
-            {derniere?.distance} km
-          </Text>
-          <Text style={{ fontSize: 13.5, color: C.sub, marginRight: 16 }}>
-            {derniere?.duree}
-          </Text>
-          <Text style={{ fontSize: 13.5, color: C.sub }}>
-            {derniere?.allure}/km
-          </Text>
-        </View>
-        <Pressable
-          onPress={onAnalyse}
-          style={{ flexDirection: 'row', alignItems: 'center', marginTop: 13 }}>
-          <Sparkles size={15} color={C.accent} />
-          <Text
-            style={{
-              color: C.accent,
-              fontWeight: '600',
-              fontSize: 13.5,
-              marginLeft: 6,
-            }}>
-            Analyse rapide
-          </Text>
-        </Pressable>
-      </View>
 
-      <Micro style={{ marginBottom: 10 }}>Cette semaine</Micro>
-      <View
-        style={{
-          borderWidth: 1,
-          borderColor: C.line,
-          borderRadius: 18,
-          padding: 18,
-          marginBottom: 22,
-          backgroundColor: C.surface,
-        }}>
-        <View style={{ flexDirection: 'row', marginBottom: 16 }}>
-          <Stat val={`${totalKm}`} unit="km" />
-          <Stat val={`${nbSeances}`} unit="séances" />
-          <Stat val={`J-${jSemi}`} unit="objectif" />
+      {derniere ? (
+        <CarteActivite seance={derniere} titre="Dernière sortie">
+          <Pressable
+            onPress={onAnalyse}
+            hitSlop={4}
+            android_ripple={{ color: 'rgba(255,255,255,0.12)' }}
+            style={{
+              alignSelf: 'flex-start',
+              flexDirection: 'row',
+              alignItems: 'center',
+              minHeight: 40,
+              paddingHorizontal: 16,
+              borderRadius: 20,
+              overflow: 'hidden',
+              marginTop: 14,
+              backgroundColor: C.accentSoft,
+            }}>
+            <Ionicons name="chatbubble-ellipses-outline" size={18} color={C.accent} />
+            <Text style={{ color: C.accent, fontWeight: '600', fontSize: 14, marginLeft: 8, paddingVertical: 8 }}>
+              Analyse du coach
+            </Text>
+          </Pressable>
+        </CarteActivite>
+      ) : null}
+
+      <Carte>
+        <Text style={T.titreCarte}>Cette semaine</Text>
+        <View style={{ flexDirection: 'row', marginTop: 12, marginBottom: 16 }}>
+          <Stat label="Distance" val={totalKm.toFixed(1).replace('.', ',')} unite="km" />
+          <Stat label="Sorties" val={`${nbSeances}`} />
         </View>
-        <View
-          style={{ flexDirection: 'row', alignItems: 'flex-end', height: 58 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: 76 }}>
           {semaine.map((d, i) => {
-            const max = Math.max(...semaine.map((x) => x.km), 1);
-            const h = d.km > 0 ? Math.max(6, (d.km / max) * 48) : 3;
+            const h = d.km > 0 ? Math.max(8, (d.km / maxKm) * 52) : 3;
+            // aujourd'hui : barre orange même vide (petit trait), libellé orange
+            const couleur = d.km > 0 || d.today ? C.accent : C.barVide;
             return (
               <View key={i} style={{ flex: 1, alignItems: 'center' }}>
+                {d.km > 0 ? (
+                  <Text style={{ fontSize: 11, color: C.sub, marginBottom: 4, fontVariant: ['tabular-nums'] }}>
+                    {d.km.toFixed(1).replace('.', ',')}
+                  </Text>
+                ) : null}
                 <View
                   style={{
-                    width: '70%',
+                    width: 18,
                     height: h,
-                    borderRadius: 3,
-                    backgroundColor:
-                      d.km > 0
-                        ? d.today
-                          ? C.accent
-                          : 'rgba(142,134,255,0.34)'
-                        : 'rgba(255,255,255,0.06)',
+                    borderRadius: 4,
+                    backgroundColor: couleur,
                   }}
                 />
                 <Text
                   style={{
-                    fontSize: 10,
-                    color: d.today ? C.accent : C.faint,
+                    fontSize: 12,
                     marginTop: 6,
+                    color: d.today ? C.accent : C.faint,
+                    fontWeight: d.today ? '700' : '400',
                   }}>
                   {d.j}
                 </Text>
@@ -388,62 +375,93 @@ const jSemi = Math.max(0, Math.ceil((new Date("2026-11-08") - now) / 86400000)
             );
           })}
         </View>
-      </View>
+      </Carte>
 
-<Micro style={{ marginBottom: 8 }}>Prochaine séance</Micro>
-      <Pressable onPress={onProg} style={{ marginBottom: 22 }}>
-        <LinearGradient
-          colors={['#241F3A', '#17151F']}
-          start={{ x: 1, y: 0 }}
-          end={{ x: 0, y: 1 }}
+      {prochaine ? (
+        <Pressable
+          onPress={onProg}
+          android_ripple={{ color: 'rgba(255,255,255,0.08)' }}
           style={{
-            borderRadius: 18,
-            borderWidth: 1,
-            borderColor: C.line,
-            padding: 18,
+            backgroundColor: C.surface,
+            borderRadius: 16,
+            overflow: 'hidden',
+            padding: 16,
             flexDirection: 'row',
             alignItems: 'center',
           }}>
-          <View style={{ flex: 1 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
-              <Text style={{ fontSize: 19, fontWeight: '800', color: C.text }}>
-                {prochaine?.type}
-              </Text>
-              <Text style={{ fontSize: 12.5, color: C.sub }}>
-                {' '}
-                · {prochaine?.jour}
-              </Text>
-            </View>
-            <Text style={{ fontSize: 13.5, color: C.sub, marginTop: 3 }}>
-              {prochaine?.detail}
-            </Text>
-            {prochaine?.cible && prochaine.cible !== '—' ? (
-              <Text style={{ fontSize: 12.5, color: C.accent, marginTop: 7 }}>
-                Cible {prochaine.cible}
-              </Text>
-            ) : null}
+          <View
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: 20,
+              backgroundColor: C.accentSoft,
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginRight: 14,
+            }}>
+            <Ionicons name="calendar-outline" size={20} color={C.accent} />
           </View>
-          <ChevronRight size={20} color={C.faint} />
-        </LinearGradient>
-      </Pressable>
-
+          <View style={{ flex: 1 }}>
+            <Text style={T.titreCarte}>Prochaine séance</Text>
+            <Text style={[T.section, { marginTop: 4 }]}>{prochaine.type}</Text>
+            <Text style={[T.second, { marginTop: 2 }]}>
+              {[prochaine.jour, valeurUtile(prochaine.detail), valeurUtile(prochaine.cible)]
+                .filter(Boolean)
+                .join(' · ')}
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={C.faint} />
+        </Pressable>
+      ) : null}
     </ScrollView>
   );
 }
 
-function Stat({ val, unit }) {
+// « — » ou vide = pas d'info à afficher
+function valeurUtile(v) {
+  if (v === 'TBD') return 'Détail à venir';
+  return v && v !== '—' ? v : null;
+}
+
+// « Lun. 19/10 » → date du 19 octobre (année en cours, ou suivante en fin d'année)
+function dateProgramme(jour) {
+  const m = /(\d{1,2})\/(\d{1,2})/.exec(jour || '');
+  if (!m) return null;
+  const now = new Date();
+  const mois = Number(m[2]) - 1;
+  let annee = now.getFullYear();
+  if (mois < now.getMonth() - 6) annee += 1;
+  return new Date(annee, mois, Number(m[1]));
+}
+
+// Index de la prochaine séance : la première dont la date est aujourd'hui ou après.
+function indexProchaine(programme) {
+  const auj = new Date();
+  auj.setHours(0, 0, 0, 0);
+  const i = programme.findIndex((p) => {
+    const d = dateProgramme(p.jour);
+    return !d || d >= auj;
+  });
+  return i === -1 ? programme.length : i;
+}
+
+// N'affiche quelque chose que si les données ne sont PAS fraîches.
+function EtatDonnees({ source }) {
+  if (source === 'Connecté' || source === '…') return null;
+  const enCours = source.startsWith('MAJ');
+  const texte = enCours
+    ? 'Mise à jour des séances…'
+    : source === 'Hors ligne'
+      ? 'Hors ligne : dernières données mémorisées'
+      : 'Données de démonstration (serveur injoignable)';
   return (
-    <View style={{ flex: 1 }}>
-      <Text
-        style={{
-          fontSize: 22,
-          fontWeight: '800',
-          letterSpacing: -0.5,
-          color: C.text,
-        }}>
-        {val}
-      </Text>
-      <Text style={{ fontSize: 11, color: C.faint, marginTop: 1 }}>{unit}</Text>
+    <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 8 }}>
+      {enCours ? (
+        <ActivityIndicator size="small" color={C.sub} style={{ marginRight: 8 }} />
+      ) : (
+        <Ionicons name="cloud-offline-outline" size={16} color={C.sub} style={{ marginRight: 8 }} />
+      )}
+      <Text style={T.second}>{texte}</Text>
     </View>
   );
 }
@@ -452,51 +470,48 @@ function Stat({ val, unit }) {
 //  PROGRAMME
 // ============================================================
 function EcranProgramme({ programme }) {
+  const iProchaine = indexProchaine(programme);
   return (
     <>
-      <EnTete titre="Programme" sousTitre="Cette semaine" />
+      <EnTete titre="Programme" sousTitre="Tes prochaines séances" />
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 120 }}>
-        {programme.map((p, i) => (
-          <View
-            key={i}
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              paddingVertical: 14,
-              borderBottomWidth: i < programme.length - 1 ? 1 : 0,
-              borderBottomColor: C.line,
-            }}>
-            <View
-              style={{
-                width: 3,
-                height: 34,
-                borderRadius: 3,
-                backgroundColor: p.type === 'Repos' ? C.line : C.accent,
-                marginRight: 14,
-              }}
-            />
-            <View style={{ flex: 1 }}>
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 120 }}>
+        <Carte style={{ paddingVertical: 4 }}>
+          {programme.map((p, i) => {
+            // séances passées et jours de repos en retrait
+            const passee = i < iProchaine;
+            const repos = p.type === 'Repos';
+            const cible = valeurUtile(p.cible);
+            return (
               <View
+                key={i}
                 style={{
                   flexDirection: 'row',
-                  justifyContent: 'space-between',
-                  alignItems: 'baseline',
+                  alignItems: 'center',
+                  paddingVertical: 14,
+                  borderTopWidth: i > 0 ? 1 : 0,
+                  borderTopColor: C.line,
+                  opacity: passee || repos ? 0.65 : 1,
                 }}>
-                <Text
-                  style={{ fontWeight: '700', fontSize: 15, color: C.text }}>
-                  {p.type}
-                </Text>
-                <Text style={{ fontSize: 12.5, color: C.faint }}>{p.jour}</Text>
+                <View style={{ width: 84 }}>
+                  <Text style={[T.label, { color: i === iProchaine ? C.accent : C.sub }]}>
+                    {p.jour}
+                  </Text>
+                </View>
+                <View style={{ flex: 1, paddingRight: 8 }}>
+                  <Text style={T.section}>{p.type}</Text>
+                  {valeurUtile(p.detail) ? (
+                    <Text style={[T.second, { marginTop: 2 }]}>{valeurUtile(p.detail)}</Text>
+                  ) : null}
+                </View>
+                {cible ? (
+                  <Text style={[T.section, { fontVariant: ['tabular-nums'] }]}>{cible}</Text>
+                ) : null}
               </View>
-              <Text style={{ fontSize: 13, color: C.sub, marginTop: 3 }}>
-                {p.detail}
-                {p.cible && p.cible !== '—' ? ` · Cible ${p.cible}` : ''}
-              </Text>
-            </View>
-          </View>
-        ))}
+            );
+          })}
+        </Carte>
       </ScrollView>
     </>
   );
@@ -505,71 +520,16 @@ function EcranProgramme({ programme }) {
 // ============================================================
 //  SÉANCES
 // ============================================================
-function EcranSeances({ seances }) {
-  const teinte = {
-    Plaisir: 0.35,
-    Bien: 0.55,
-    Normal: 0.75,
-    Dur: 0.9,
-    Horrible: 1,
-  };
+function EcranSeances({ seances, rafraichir }) {
   return (
     <>
       <EnTete titre="Séances" sousTitre="Synchronisées avec Strava" />
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 120 }}>
+        refreshControl={rafraichir}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 120 }}>
         {seances.map((s, i) => (
-          <View
-            key={i}
-            style={{
-              paddingVertical: 15,
-              borderBottomWidth: i < seances.length - 1 ? 1 : 0,
-              borderBottomColor: C.line,
-            }}>
-            <View
-              style={{
-                flexDirection: 'row',
-                justifyContent: 'space-between',
-                alignItems: 'baseline',
-              }}>
-              <Text style={{ fontWeight: '700', fontSize: 15, color: C.text }}>
-                {s.type}
-              </Text>
-              <Text style={{ fontSize: 12.5, color: C.faint }}>{s.date}</Text>
-            </View>
-            <View style={{ flexDirection: 'row', marginTop: 8 }}>
-              <Text style={{ fontSize: 13.5, color: C.sub, marginRight: 16 }}>
-                {s.distance} km
-              </Text>
-              <Text style={{ fontSize: 13.5, color: C.sub, marginRight: 16 }}>
-                {s.duree}
-              </Text>
-              <Text style={{ fontSize: 13.5, color: C.sub }}>
-                {s.allure}/km
-              </Text>
-            </View>
-            {s.ressenti ? (
-              <View
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  marginTop: 9,
-                }}>
-                <View
-                  style={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: 999,
-                    backgroundColor: C.accent,
-                    opacity: teinte[s.ressenti] || 0.5,
-                    marginRight: 6,
-                  }}
-                />
-                <Micro style={{ color: C.sub }}>{s.ressenti}</Micro>
-              </View>
-            ) : null}
-          </View>
+          <CarteActivite key={i} seance={s} />
         ))}
       </ScrollView>
     </>
@@ -582,40 +542,40 @@ function EcranSeances({ seances }) {
 function EcranRecords({ records }) {
   return (
     <>
-      <EnTete titre="Records" sousTitre="Tes meilleures perfs" />
+      <EnTete titre="Records" sousTitre="Estimés d'après tes sorties Strava" />
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 120 }}>
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 120 }}>
         <View
           style={{
             flexDirection: 'row',
             flexWrap: 'wrap',
             justifyContent: 'space-between',
           }}>
-          {records.map((r, i) => (
-            <View
-              key={i}
-              style={{
-                width: '48.5%',
-                borderWidth: 1,
-                borderColor: C.line,
-                borderRadius: 16,
-                padding: 16,
-                marginBottom: 10,
-                backgroundColor: C.surface,
-              }}>
-              <Text
+          {records.map((r, i) => {
+            const vide = !valeurUtile(r.valeur);
+            return (
+              <View
+                key={i}
                 style={{
-                  fontSize: 26,
-                  fontWeight: '800',
-                  letterSpacing: -0.8,
-                  color: C.text,
+                  width: '48.5%',
+                  borderRadius: 16,
+                  padding: 16,
+                  marginBottom: 12,
+                  backgroundColor: C.surface,
                 }}>
-                {r.valeur}
-              </Text>
-              <Micro style={{ marginTop: 5, color: C.sub }}>{r.label}</Micro>
-            </View>
-          ))}
+                <Text style={T.label}>{r.label}</Text>
+                <Text
+                  style={[
+                    T.chiffre,
+                    { fontSize: 24, marginTop: 6, color: vide ? C.faint : C.text },
+                  ]}>
+                  {vide ? '—' : r.valeur}
+                </Text>
+                {vide ? <Text style={[T.second, { marginTop: 2 }]}>Pas encore</Text> : null}
+              </View>
+            );
+          })}
         </View>
       </ScrollView>
     </>
@@ -676,12 +636,17 @@ function EcranChat({
     } catch {
       setMessages((p) => [
         ...p,
-        { role: 'assistant', content: 'Oups, réessaie.' },
+        {
+          role: 'assistant',
+          content: "Je n'ai pas reçu ton message (réseau ?). Renvoie-le dans un instant.",
+        },
       ]);
     } finally {
       setEnCours(false);
     }
   }
+
+  const peutEnvoyer = saisie.trim().length > 0 && !enCours;
 
   return (
     <KeyboardAvoidingView
@@ -693,25 +658,22 @@ function EcranChat({
         style={{
           flexDirection: 'row',
           alignItems: 'center',
-          padding: 16,
-          borderBottomWidth: 1,
-          borderBottomColor: C.line,
+          height: 64,
+          paddingHorizontal: 4,
         }}>
-        <Pressable onPress={onRetour} style={{ marginRight: 12 }}>
-          <ArrowLeft size={22} color={C.text} />
+        <Pressable
+          onPress={onRetour}
+          accessibilityLabel="Retour"
+          style={{ width: 48, height: 48, alignItems: 'center', justifyContent: 'center' }}>
+          <Ionicons name="arrow-back" size={24} color={C.text} />
         </Pressable>
-        <View>
-          <Text style={{ fontWeight: '700', fontSize: 15.5, color: C.text }}>
-            Coach
-          </Text>
-          <Micro style={{ color: C.sub, marginTop: 1 }}>en ligne</Micro>
-        </View>
+        <Text style={[T.titreCarte, { fontSize: 20, marginLeft: 4 }]}>Coach</Text>
       </View>
 
       <ScrollView
         ref={scrollRef}
         style={{ flex: 1 }}
-        contentContainerStyle={{ padding: 16 }}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 8 }}
         onContentSizeChange={() =>
           scrollRef.current?.scrollToEnd({ animated: true })
         }>
@@ -723,41 +685,37 @@ function EcranChat({
               style={{
                 flexDirection: 'row',
                 justifyContent: moi ? 'flex-end' : 'flex-start',
-                marginBottom: 10,
+                marginBottom: 8,
               }}>
               <View
                 style={{
                   maxWidth: '82%',
                   paddingVertical: 10,
                   paddingHorizontal: 14,
-                  borderRadius: 15,
+                  borderRadius: 18,
+                  borderBottomRightRadius: moi ? 6 : 18,
+                  borderBottomLeftRadius: moi ? 18 : 6,
                   backgroundColor: moi ? C.accent : C.surfaceHi,
-                  borderWidth: moi ? 0 : 1,
-                  borderColor: C.line,
                 }}>
-                <Text
-                  style={{
-                    fontSize: 14.5,
-                    lineHeight: 21,
-                    color: moi ? '#0A0910' : C.text,
-                  }}>
+                <Text style={[T.corps, { color: moi ? C.onAccent : C.text }]}>
                   {m.content}
                 </Text>
               </View>
             </View>
           );
         })}
-        {enCours && <Micro style={{ color: C.sub }}>le coach réfléchit…</Micro>}
+        {enCours && (
+          <Text style={[T.second, { marginTop: 4 }]}>Le coach écrit…</Text>
+        )}
       </ScrollView>
 
       <View
         style={{
           flexDirection: 'row',
-          padding: 12,
+          paddingHorizontal: 12,
+          paddingTop: 8,
           // clavier fermé : on laisse la place à la barre de navigation Android
-          paddingBottom: clavierOuvert ? 12 : 12 + insets.bottom,
-          borderTopWidth: 1,
-          borderTopColor: C.line,
+          paddingBottom: clavierOuvert ? 8 : 8 + insets.bottom,
           // le bouton reste en bas quand le champ grandit
           alignItems: 'flex-end',
         }}>
@@ -769,32 +727,37 @@ function EcranChat({
           multiline
           placeholder="Écris à ton coach…"
           placeholderTextColor={C.faint}
+          cursorColor={C.accent}
+          selectionColor={C.accentSoft}
           style={{
             flex: 1,
+            minHeight: 48,
             maxHeight: 120,
             textAlignVertical: 'top',
-            paddingTop: 11,
-            paddingVertical: 11,
-            paddingHorizontal: 14,
-            borderRadius: 12,
-            borderWidth: 1,
-            borderColor: C.line,
-            backgroundColor: C.surface,
+            paddingTop: 13,
+            paddingBottom: 13,
+            paddingHorizontal: 18,
+            borderRadius: 24,
+            backgroundColor: C.surfaceHi,
             color: C.text,
-            fontSize: 14.5,
+            fontSize: 15,
             marginRight: 8,
           }}
         />
         <Pressable
           onPress={() => envoyer()}
-          disabled={enCours}
+          disabled={!peutEnvoyer}
+          accessibilityLabel="Envoyer"
+          android_ripple={{ color: 'rgba(255,255,255,0.16)', borderless: true, radius: 24 }}
           style={{
-            paddingHorizontal: 18,
-            paddingVertical: 12,
-            borderRadius: 12,
-            backgroundColor: C.accent,
+            width: 48,
+            height: 48,
+            borderRadius: 24,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: peutEnvoyer ? C.accent : C.surfaceHi,
           }}>
-          <Text style={{ color: '#0A0910', fontWeight: '700' }}>Go</Text>
+          <Ionicons name="send" size={20} color={peutEnvoyer ? C.onAccent : C.faint} />
         </Pressable>
       </View>
     </KeyboardAvoidingView>
@@ -804,85 +767,165 @@ function EcranChat({
 // ============================================================
 //  BRIQUES
 // ============================================================
-function EnTete({ titre, sousTitre }) {
+function Carte({ children, style }) {
   return (
-    <View style={{ paddingHorizontal: 18, paddingTop: 20, paddingBottom: 12 }}>
-      <Text
-        style={{
-          fontSize: 23,
-          fontWeight: '800',
-          letterSpacing: -0.5,
-          color: C.text,
-        }}>
-        {titre}
-      </Text>
-      <Micro style={{ color: C.sub, marginTop: 3 }}>{sousTitre}</Micro>
+    <View
+      style={[
+        { backgroundColor: C.surface, borderRadius: 16, padding: 16, marginBottom: 12 },
+        style,
+      ]}>
+      {children}
     </View>
   );
 }
 
-function BulleCoach({ onPress }) {
+// Carte d'une sortie Strava : titre, date, puis Distance / Durée / Allure.
+function CarteActivite({ seance, titre, children }) {
+  return (
+    <Carte>
+      {titre ? <Text style={[T.titreCarte, { marginBottom: 4 }]}>{titre}</Text> : null}
+      <Text style={titre ? T.section : T.titreCarte} numberOfLines={2}>
+        {seance.type}
+      </Text>
+      <Text style={[T.second, { marginTop: 2 }]}>{seance.date}</Text>
+      <View style={{ flexDirection: 'row', marginTop: 14 }}>
+        <Stat label="Distance" val={String(seance.distance).replace('.', ',')} unite="km" />
+        <Stat label="Durée" val={seance.duree} />
+        <Stat label="Allure" val={seance.allure} unite="/km" />
+      </View>
+      {seance.ressenti ? (
+        <Text style={[T.second, { marginTop: 12 }]}>
+          Ressenti : <Text style={{ color: C.text }}>{seance.ressenti}</Text>
+          {' '}(estimé via la FC)
+        </Text>
+      ) : null}
+      {children}
+    </Carte>
+  );
+}
+
+function Stat({ label, val, unite }) {
+  return (
+    <View style={{ flex: 1 }}>
+      <Text style={T.label}>{label}</Text>
+      <Text style={[T.chiffre, { marginTop: 2 }]}>
+        {val}
+        {unite ? (
+          <Text style={{ fontSize: 14, fontWeight: '500', color: C.sub }}> {unite}</Text>
+        ) : null}
+      </Text>
+    </View>
+  );
+}
+
+function Puce({ children }) {
+  return (
+    <View
+      style={{
+        borderWidth: 1,
+        borderColor: C.line,
+        borderRadius: 8,
+        paddingVertical: 5,
+        paddingHorizontal: 10,
+      }}>
+      <Text style={{ fontSize: 13, color: C.sub, fontVariant: ['tabular-nums'] }}>
+        {children}
+      </Text>
+    </View>
+  );
+}
+
+function EnTete({ titre, sousTitre }) {
+  return (
+    <View style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 16 }}>
+      <Text style={T.titre}>{titre}</Text>
+      <Text style={[T.second, { marginTop: 4 }]}>{sousTitre}</Text>
+    </View>
+  );
+}
+
+// Bouton flottant (FAB Material 3) pour ouvrir le chat depuis partout.
+function BoutonCoach({ onPress }) {
   const insets = useSafeAreaInsets();
   return (
     <Pressable
       onPress={onPress}
-      style={{
+      accessibilityLabel="Parler au coach"
+      android_ripple={{ color: 'rgba(0,0,0,0.16)', borderless: false }}
+      style={({ pressed }) => ({
         position: 'absolute',
-        right: 18,
-        bottom: insets.bottom + 78,
+        right: 16,
+        bottom: insets.bottom + 96,
         zIndex: 10,
         width: 56,
         height: 56,
-        borderRadius: 999,
+        borderRadius: 16,
+        overflow: 'hidden',
         backgroundColor: C.accent,
         alignItems: 'center',
         justifyContent: 'center',
-        shadowColor: C.accent,
-        shadowOpacity: 0.4,
-        shadowRadius: 12,
-        shadowOffset: { width: 0, height: 8 },
-        elevation: 8,
-      }}>
-      <MessageCircle size={24} color="#0A0910" strokeWidth={2.2} />
+        elevation: pressed ? 2 : 6,
+        shadowColor: '#000',
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 4 },
+      })}>
+      <Ionicons name="chatbubble-ellipses" size={24} color={C.onAccent} />
     </Pressable>
   );
 }
 
+// Barre d'onglets Material 3 : pastille derrière l'icône active.
 function BarreOnglets({ ecran, setEcran }) {
   const insets = useSafeAreaInsets();
   const onglets = [
-    { id: 'home', Icone: Home, label: 'Accueil' },
-    { id: 'programme', Icone: CalendarDays, label: 'Prog' },
-    { id: 'seances', Icone: Activity, label: 'Séances' },
-    { id: 'records', Icone: Trophy, label: 'Records' },
+    { id: 'home', icone: 'home', label: 'Accueil' },
+    { id: 'programme', icone: 'calendar', label: 'Programme' },
+    { id: 'seances', icone: 'list', label: 'Séances' },
+    { id: 'records', icone: 'trophy', label: 'Records' },
   ];
   return (
     <View
       style={{
         flexDirection: 'row',
-        borderTopWidth: 1,
-        borderTopColor: C.line,
-        backgroundColor: C.bg,
-        paddingTop: 8,
-        paddingBottom: insets.bottom + 10,
+        backgroundColor: C.nav,
+        paddingTop: 12,
+        paddingBottom: insets.bottom + 12,
       }}>
-      {onglets.map(({ id, Icone, label }) => {
+      {onglets.map(({ id, icone, label }) => {
         const actif = ecran === id;
         return (
           <Pressable
             key={id}
             onPress={() => setEcran(id)}
+            android_ripple={{ color: 'rgba(255,255,255,0.12)', borderless: true, radius: 32 }}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: actif }}
             style={{ flex: 1, alignItems: 'center' }}>
-            <Icone
-              size={21}
-              color={actif ? C.accent : C.faint}
-              strokeWidth={actif ? 2.2 : 1.75}
-            />
+            <View
+              // « key » force Android à redessiner la pastille arrondie
+              // (sinon elle restait carrée en changeant d'onglet)
+              key={actif ? 'actif' : 'inactif'}
+              style={{
+                width: 64,
+                height: 32,
+                borderRadius: 16,
+                overflow: 'hidden',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: actif ? C.accentSoft : 'transparent',
+              }}>
+              <Ionicons
+                name={actif ? icone : `${icone}-outline`}
+                size={22}
+                color={actif ? C.accent : C.sub}
+              />
+            </View>
             <Text
               style={{
-                fontSize: 10.5,
-                fontWeight: actif ? '600' : '500',
-                color: actif ? C.accent : C.faint,
+                fontSize: 12,
+                fontWeight: actif ? '700' : '500',
+                color: actif ? C.text : C.sub,
                 marginTop: 4,
               }}>
               {label}
