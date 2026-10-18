@@ -6,7 +6,7 @@ import {
   Pressable,
   TextInput,
   KeyboardAvoidingView,
-  Platform,
+  Keyboard,
   ActivityIndicator,
 } from 'react-native';
 import {
@@ -153,20 +153,25 @@ useEffect(() => {
   const [source, setSource] = useState('…');
 
   // HISTORIQUE : on recharge les derniers messages au démarrage.
+  const [histoCharge, setHistoCharge] = useState(false);
   useEffect(() => {
     (async () => {
       try {
         const s = await AsyncStorage.getItem('coach_messages');
-        if (s) setMessages(JSON.parse(s));
+        // on garde les messages déjà envoyés pendant le chargement
+        if (s) setMessages((p) => [...JSON.parse(s), ...p.slice(1)]);
       } catch {}
+      setHistoCharge(true);
     })();
   }, []);
-  // ... et on les sauvegarde à chaque changement.
+  // ... et on les sauvegarde à chaque changement, mais seulement APRÈS
+  // le chargement (sinon le message d'accueil écrasait l'historique).
   useEffect(() => {
+    if (!histoCharge) return;
     AsyncStorage.setItem('coach_messages', JSON.stringify(messages)).catch(
       () => {}
     );
-  }, [messages]);
+  }, [messages, histoCharge]);
 
   // DONNÉES : on va chercher tes vraies séances/records/programme.
   useEffect(() => {
@@ -176,7 +181,6 @@ useEffect(() => {
     }
     (async () => {
       setSource("MAJ en cours…");
-const d = await (await fetch(N8N.data)).json();
       try {
         const d = await (await fetch(N8N.data)).json();
         if (d.seances) setSeances(d.seances);
@@ -631,6 +635,17 @@ function EcranChat({
   const [saisie, setSaisie] = useState('');
   const [enCours, setEnCours] = useState(false);
   const scrollRef = useRef(null);
+  const insets = useSafeAreaInsets();
+  const [clavierOuvert, setClavierOuvert] = useState(false);
+
+  useEffect(() => {
+    const a = Keyboard.addListener('keyboardDidShow', () => setClavierOuvert(true));
+    const b = Keyboard.addListener('keyboardDidHide', () => setClavierOuvert(false));
+    return () => {
+      a.remove();
+      b.remove();
+    };
+  }, []);
 
   useEffect(() => {
     if (promptInitial) {
@@ -671,7 +686,9 @@ function EcranChat({
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      // Android en plein écran (edge-to-edge, SDK 55) : l'écran ne se
+      // redimensionne plus tout seul → on pousse aussi avec "padding".
+      behavior="padding">
       <View
         style={{
           flexDirection: 'row',
@@ -737,6 +754,8 @@ function EcranChat({
         style={{
           flexDirection: 'row',
           padding: 12,
+          // clavier fermé : on laisse la place à la barre de navigation Android
+          paddingBottom: clavierOuvert ? 12 : 12 + insets.bottom,
           borderTopWidth: 1,
           borderTopColor: C.line,
           alignItems: 'center',
