@@ -758,17 +758,22 @@ function EcranChat({
           paddingBottom: clavierOuvert ? 12 : 12 + insets.bottom,
           borderTopWidth: 1,
           borderTopColor: C.line,
-          alignItems: 'center',
+          // le bouton reste en bas quand le champ grandit
+          alignItems: 'flex-end',
         }}>
         <TextInput
           value={saisie}
           onChangeText={setSaisie}
-          onSubmitEditing={() => envoyer()}
+          // plusieurs lignes : le texte s'agrandit jusqu'à ~5 lignes,
+          // Entrée = retour à la ligne, on envoie avec le bouton.
+          multiline
           placeholder="Écris à ton coach…"
           placeholderTextColor={C.faint}
-          returnKeyType="send"
           style={{
             flex: 1,
+            maxHeight: 120,
+            textAlignVertical: 'top',
+            paddingTop: 11,
             paddingVertical: 11,
             paddingHorizontal: 14,
             borderRadius: 12,
