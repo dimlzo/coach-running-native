@@ -1,0 +1,134 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-18T17:00:00Z",
+  "title": "Design System: Mon Coach Running",
+  "extensions": {
+    "colorMeta": {
+      "run-orange": { "role": "primary", "displayName": "Run Orange", "canonical": "#FF6A2B", "tonalRamp": ["#3A1405", "#5C220B", "#862F10", "#B44016", "#E0541C", "#FF6A2B", "#FF9C73", "#FFD3C0"] },
+      "run-orange-tonal": { "role": "primary", "displayName": "Orange Tonal", "canonical": "rgba(255,106,43,0.16)" },
+      "on-orange": { "role": "primary", "displayName": "On Orange", "canonical": "#1A0E08" },
+      "ground": { "role": "neutral", "displayName": "Ground", "canonical": "#121212", "tonalRamp": ["#121212", "#1E1E1E", "#232323", "#2A2A2A", "#3A3A3A", "#9E9E9E", "#B3B3B3", "#FFFFFF"] },
+      "surface": { "role": "neutral", "displayName": "Surface", "canonical": "#1E1E1E" },
+      "surface-high": { "role": "neutral", "displayName": "Surface High", "canonical": "#2A2A2A" },
+      "nav-surface": { "role": "neutral", "displayName": "Nav Surface", "canonical": "#232323" },
+      "outline": { "role": "neutral", "displayName": "Outline", "canonical": "rgba(255,255,255,0.12)" },
+      "text": { "role": "neutral", "displayName": "Text", "canonical": "#FFFFFF" },
+      "text-secondary": { "role": "neutral", "displayName": "Secondary Text", "canonical": "#B3B3B3" },
+      "text-faint": { "role": "neutral", "displayName": "Faint Text", "canonical": "#9E9E9E" },
+      "bar-empty": { "role": "neutral", "displayName": "Empty Bar", "canonical": "#3A3A3A" }
+    },
+    "typographyMeta": {
+      "headline": { "displayName": "Headline (T.titre)", "purpose": "Screen titles." },
+      "title": { "displayName": "Title (T.titreCarte)", "purpose": "Card titles." },
+      "title-medium": { "displayName": "Title Medium (T.section)", "purpose": "Session type, list row primary text, target pace." },
+      "body": { "displayName": "Body (T.corps)", "purpose": "Chat messages." },
+      "body-secondary": { "displayName": "Body Secondary (T.second)", "purpose": "Dates, subtitles, details, status line." },
+      "label": { "displayName": "Label (T.label)", "purpose": "Stat labels above figures, plan day column." },
+      "figure": { "displayName": "Figure (T.chiffre)", "purpose": "Stat values, tabular; records at 24px." }
+    },
+    "shadows": [
+      { "name": "fab-elevation", "value": "0 4px 8px rgba(0,0,0,0.3)", "purpose": "FAB only; Android elevation 6 at rest, 2 pressed. Neutral, never coloured." }
+    ],
+    "motion": [
+      { "name": "ripple", "value": "android_ripple rgba(255,255,255,0.08-0.16); rgba(0,0,0,0.16) on orange", "purpose": "Native touch feedback on every pressable." }
+    ],
+    "breakpoints": []
+  },
+  "components": [
+    {
+      "name": "Tonal Button",
+      "kind": "button",
+      "refersTo": "button-tonal",
+      "description": "Secondary in-card action, e.g. 'Analyse du coach'.",
+      "html": "<button class=\"ds-btn-tonal\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M4 5h16v11H9l-5 4z\"/></svg>Analyse du coach</button>",
+      "css": ".ds-btn-tonal { display:inline-flex; align-items:center; gap:8px; min-height:40px; padding:0 16px; border:none; border-radius:20px; background:rgba(255,106,43,0.16); color:#FF6A2B; font:600 14px Roboto, sans-serif; } .ds-btn-tonal:hover { background:rgba(255,106,43,0.24); } .ds-btn-tonal:focus-visible { outline:2px solid #FF6A2B; outline-offset:2px; } .ds-btn-tonal:active { background:rgba(255,106,43,0.30); }"
+    },
+    {
+      "name": "Coach FAB",
+      "kind": "button",
+      "refersTo": "fab",
+      "description": "M3 FAB opening the chat from every screen except chat.",
+      "html": "<button class=\"ds-fab\" aria-label=\"Parler au coach\"><svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"currentColor\"><path d=\"M4 4h16v12H9l-5 4z\"/></svg></button>",
+      "css": ".ds-fab { width:56px; height:56px; border:none; border-radius:16px; background:#FF6A2B; color:#1A0E08; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 8px rgba(0,0,0,0.3); } .ds-fab:hover { filter:brightness(1.05); } .ds-fab:focus-visible { outline:2px solid #FFFFFF; outline-offset:2px; } .ds-fab:active { box-shadow:0 1px 3px rgba(0,0,0,0.3); }"
+    },
+    {
+      "name": "Outlined Chip",
+      "kind": "chip",
+      "refersTo": "chip-outlined",
+      "description": "Race countdown chip in the home top bar.",
+      "html": "<span class=\"ds-chip\">Semi 8 nov. · <b>J-21</b></span>",
+      "css": ".ds-chip { display:inline-block; padding:5px 10px; border:1px solid rgba(255,255,255,0.12); border-radius:8px; color:#B3B3B3; font:400 13px Roboto, sans-serif; font-variant-numeric:tabular-nums; } .ds-chip b { color:#FFFFFF; font-weight:700; }"
+    },
+    {
+      "name": "Activity Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Strava run: title, type, date, label-above-value stats, estimated feel.",
+      "html": "<div class=\"ds-card\"><div class=\"ds-card-title\">Dernière sortie</div><div class=\"ds-card-type\">Endurance</div><div class=\"ds-card-sub\">14 août</div><div class=\"ds-stats\"><div><div class=\"ds-label\">Distance</div><div class=\"ds-fig\">8,2<span> km</span></div></div><div><div class=\"ds-label\">Durée</div><div class=\"ds-fig\">45 min</div></div><div><div class=\"ds-label\">Allure</div><div class=\"ds-fig\">5:29<span> /km</span></div></div></div><div class=\"ds-card-sub\" style=\"margin-top:12px\">Ressenti : <b>Bien</b> (estimé via la FC)</div></div>",
+      "css": ".ds-card { background:#1E1E1E; border-radius:16px; padding:16px; color:#FFFFFF; font-family:Roboto, sans-serif; } .ds-card-title { font:700 16px Roboto, sans-serif; margin-bottom:4px; } .ds-card-type { font:500 16px Roboto, sans-serif; } .ds-card-sub { font:400 14px/20px Roboto, sans-serif; color:#B3B3B3; margin-top:2px; } .ds-card-sub b { color:#FFFFFF; font-weight:400; } .ds-stats { display:flex; margin-top:14px; } .ds-stats > div { flex:1; } .ds-label { font:500 12px Roboto, sans-serif; color:#B3B3B3; } .ds-fig { font:700 22px Roboto, sans-serif; font-variant-numeric:tabular-nums; margin-top:2px; } .ds-fig span { font-size:14px; font-weight:500; color:#B3B3B3; }"
+    },
+    {
+      "name": "Navigation Bar",
+      "kind": "nav",
+      "refersTo": "nav-bar",
+      "description": "M3 bottom navigation, 4 tabs, tonal indicator pill on the active tab.",
+      "html": "<nav class=\"ds-nav\"><a class=\"ds-tab ds-tab-on\"><span class=\"ds-ind\"><svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"currentColor\"><path d=\"M3 11l9-8 9 8v10h-6v-6H9v6H3z\"/></svg></span>Accueil</a><a class=\"ds-tab\"><span class=\"ds-ind\"><svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><rect x=\"3\" y=\"5\" width=\"18\" height=\"16\" rx=\"2\"/><path d=\"M3 10h18M8 3v4M16 3v4\"/></svg></span>Programme</a></nav>",
+      "css": ".ds-nav { display:flex; background:#232323; padding:12px 0; } .ds-tab { flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; color:#B3B3B3; font:500 12px Roboto, sans-serif; cursor:pointer; } .ds-ind { width:64px; height:32px; border-radius:16px; display:flex; align-items:center; justify-content:center; } .ds-tab:hover .ds-ind { background:rgba(255,255,255,0.08); } .ds-tab:focus-visible { outline:2px solid #FF6A2B; } .ds-tab-on { color:#FFFFFF; font-weight:700; } .ds-tab-on .ds-ind { background:rgba(255,106,43,0.16); color:#FF6A2B; }"
+    },
+    {
+      "name": "Chat Composer",
+      "kind": "input",
+      "refersTo": "chat-input",
+      "description": "Multiline pill field with circular send button.",
+      "html": "<div class=\"ds-composer\"><textarea class=\"ds-field\" rows=\"1\" placeholder=\"Écris à ton coach…\"></textarea><button class=\"ds-send\" aria-label=\"Envoyer\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"currentColor\"><path d=\"M3 20l18-8L3 4v6l12 2-12 2z\"/></svg></button></div>",
+      "css": ".ds-composer { display:flex; align-items:flex-end; gap:8px; padding:8px 12px; } .ds-field { flex:1; min-height:48px; max-height:120px; box-sizing:border-box; padding:13px 18px; border:none; border-radius:24px; background:#2A2A2A; color:#FFFFFF; caret-color:#FF6A2B; font:400 15px Roboto, sans-serif; resize:none; } .ds-field::placeholder { color:#9E9E9E; } .ds-field:focus-visible { outline:none; } .ds-send { width:48px; height:48px; border:none; border-radius:24px; background:#FF6A2B; color:#1A0E08; display:flex; align-items:center; justify-content:center; } .ds-send:disabled { background:#2A2A2A; color:#9E9E9E; } .ds-send:focus-visible { outline:2px solid #FFFFFF; outline-offset:2px; }"
+    },
+    {
+      "name": "Chat Bubbles",
+      "kind": "custom",
+      "refersTo": "bubble-user",
+      "description": "User in Run Orange (right, tail bottom-right), coach in Surface High (left, tail bottom-left).",
+      "html": "<div class=\"ds-thread\"><div class=\"ds-bub ds-bub-coach\">Salut Dim. Comment tu te sens aujourd'hui ?</div><div class=\"ds-bub ds-bub-me\">Bien, sortie facile ce matin.</div></div>",
+      "css": ".ds-thread { display:flex; flex-direction:column; gap:8px; } .ds-bub { max-width:82%; padding:10px 14px; border-radius:18px; font:400 16px/24px Roboto, sans-serif; } .ds-bub-coach { align-self:flex-start; background:#2A2A2A; color:#FFFFFF; border-bottom-left-radius:6px; } .ds-bub-me { align-self:flex-end; background:#FF6A2B; color:#1A0E08; border-bottom-right-radius:6px; }"
+    },
+    {
+      "name": "Week Bars",
+      "kind": "custom",
+      "refersTo": "card",
+      "description": "Mon→Sun km bars; run days and today in orange, empty days as grey stubs.",
+      "html": "<div class=\"ds-week\"><div><span></span><i style=\"height:3px\"></i>L</div><div><span>8,2</span><i class=\"on\" style=\"height:52px\"></i>M</div><div class=\"today\"><span></span><i class=\"on\" style=\"height:3px\"></i>M</div><div><span></span><i style=\"height:3px\"></i>J</div></div>",
+      "css": ".ds-week { display:flex; align-items:flex-end; height:76px; background:#1E1E1E; padding:16px; border-radius:16px; } .ds-week > div { flex:1; display:flex; flex-direction:column; align-items:center; color:#9E9E9E; font:400 12px Roboto, sans-serif; } .ds-week span { font-size:11px; color:#B3B3B3; margin-bottom:4px; font-variant-numeric:tabular-nums; } .ds-week i { display:block; width:18px; border-radius:4px; background:#3A3A3A; margin-bottom:6px; } .ds-week i.on { background:#FF6A2B; } .ds-week .today { color:#FF6A2B; font-weight:700; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Category Standard, Played Straight",
+    "overview": "A Material 3 dark running app at Strava's craft level, nothing themed. Tonal dark surfaces step up from the ground with no borders; one own orange marks what you act on, what is active, and the km you ran. Numbers are the content: stat labels sit above large tabular figures.\n\nDensity is calm: one 16px screen margin, cards separated by 12px, 16px inside. The visual rejection is confirmed by the owner: no \"AI premium\" template (violet accent, gradient card, sparkles, tracked uppercase micro-labels, glowing FAB).",
+    "keyCharacteristics": [
+      "Dark tonal layering (ground, surface, surface-high), borderless cards.",
+      "One accent, orange, used for actions, active state and run data only.",
+      "Roboto system face; tabular figures for every number.",
+      "Stock M3 shapes: 16px cards and FAB, pill buttons and fields, nav indicator pill.",
+      "Ionicons outline at rest, filled when active."
+    ],
+    "rules": [
+      { "name": "The One Orange Rule", "body": "Orange means \"act here\", \"you are here\" or \"you ran\". Never decorative, never a second accent, never a gradient.", "section": "colors" },
+      { "name": "The Tonal Step Rule", "body": "Depth comes from ground → surface → surface-high, not from borders. Hairline outline is reserved for chips and in-card dividers.", "section": "colors" },
+      { "name": "The Label-Above-Value Rule", "body": "Every stat is a sentence-case 12px label above a tabular figure, unit in smaller secondary type.", "section": "typography" },
+      { "name": "The Tabular Figures Rule", "body": "Any number that can sit beside another (km, pace, time, countdown, bar values) uses tabular-nums.", "section": "typography" },
+      { "name": "The No-Glow Rule", "body": "Elevation is neutral black and only on the FAB. No colored shadows, no glows, no gradients.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do keep orange to actions, active state and run data (The One Orange Rule).",
+      "Do separate surfaces by tone (#121212 → #1E1E1E → #2A2A2A), not borders.",
+      "Do put a 12px label above every figure and set numbers in tabular-nums.",
+      "Do label estimates as estimates (\"estimé via la FC\", \"Estimés d'après tes sorties Strava\") and show \"—\" rather than invented values.",
+      "Do use Ionicons outline at rest and filled for the active/primary state."
+    ],
+    "donts": [
+      "Don't use violet, gradient cards, sparkle icons or a glowing FAB (owner-confirmed rejection of the previous look).",
+      "Don't add tracked uppercase micro-labels or kickers above titles.",
+      "Don't add borders or shadows to cards; the FAB is the only elevated element.",
+      "Don't introduce a second accent colour or Strava's brand orange."
+    ]
+  }
+}

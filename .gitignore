@@ -1,0 +1,19 @@
+node_modules/
+.expo/
+dist/
+web-build/
+/android
+/ios
+*.jks
+*.keystore
+*.p8
+*.p12
+*.key
+.env*.local
+.DS_Store
+npm-debug.*
+
+# Impeccable : brouillons et captures (on garde surfaces/ et design.json)
+.impeccable/mocks/
+.impeccable/review/
+.impeccable/questions/

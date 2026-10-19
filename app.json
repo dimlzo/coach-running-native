@@ -12,6 +12,15 @@
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#0A0910"
       }
+    },
+    "plugins": [
+      "expo-font",
+      "expo-status-bar"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "ca5d5d53-67ed-4902-8141-f93bfd6a9b1d"
+      }
     }
   }
 }

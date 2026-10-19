@@ -1,0 +1,253 @@
+# CLAUDE.md — Mon Coach Running
+
+> Fichier de contexte pour Claude Code. Lis-le en entier avant d'agir.
+> Projet personnel de **Dim** : un coach running IA pour préparer un
+> **semi-marathon le 8 novembre 2026**.
+
+---
+
+## 1. Comment travailler avec moi (instructions — à respecter)
+
+- **Je ne suis pas développeur.** Explique simplement, sans jargon, et
+  guide-moi pas à pas. Quand tu me fais faire une manip, donne les étapes
+  concrètes (où cliquer, quoi coller), pas juste le concept.
+- **Une brique à la fois.** On construit et on **teste chaque couche avant**
+  de passer à la suivante. Ne branche jamais deux nouveautés d'un coup : si
+  ça casse, on ne saurait pas laquelle est en cause.
+- **Langue : français.**
+- **Contraintes matérielles** (importantes pour les choix techniques) :
+  - Téléphone **Android**.
+  - **Mac du travail sans droits admin** → impossible d'installer des
+    logiciels (`.pkg`), Node, Android Studio, etc. sur la machine.
+  - Je préfère les **outils 100 % navigateur** : GitHub (web), GitHub
+    Codespaces, Expo Snack, Hoppscotch, Vercel. Les builds se font **dans le
+    cloud** (EAS) via Codespaces.
+  - **Le terminal me ralentit** : minimise les commandes, donne-les une par
+    une, et préviens-moi de ce qui va s'afficher.
+- **Honnêteté technique** : si tu n'es pas sûr d'une version ou d'un
+  comportement, dis-le, et prévois une étape qui corrige automatiquement
+  (ex. `npx expo install --fix`) plutôt que d'affirmer au hasard.
+- **Pour déboguer** : on regarde toujours les **logs réels** (console, logs
+  de build, canvas n8n) plutôt que de deviner.
+
+---
+
+## 2. Vue d'ensemble
+
+Un coach running qui analyse mes **vraies données Strava**, me parle en chat
+(Telegram **et** app mobile), retient le fil de nos échanges, et me génère un
+**programme hebdomadaire** que je peux corriger à la main.
+
+**Règle d'or absolue (conformité Strava) :**
+> **n8n ne doit JAMAIS appeler l'API Strava directement.**
+> Tout accès à Strava passe par **ma fonction Vercel** (intégration directe,
+> avec mon propre Client ID). Strava a désactivé l'app par le passé parce
+> qu'elle passait par une « plateforme intermédiaire » (n8n). On est
+> aujourd'hui conformes — il faut le rester.
+
+---
+
+## 3. Architecture
+
+```
+            ┌────────────┐      ┌─────────────────────┐      ┌────────────┐
+  Strava ◄──┤  Fonction  │◄─────┤        n8n          │◄─────┤  Telegram  │
+   API      │   Vercel   │      │  (le "cerveau")     │      └────────────┘
+            │ (intégra-  │      │  Claude + Sheets +  │      ┌────────────┐
+            │ tion       │      │  météo + /programme │◄─────┤  App (RN)  │
+            │ directe)   │      └─────────┬───────────┘      └────────────┘
+            └────────────┘                │
+                                   ┌──────▼───────┐
+                                   │ Google Sheet │  mémoire conversation
+                                   │ "Running App"│  + onglet "Programme"
+                                   └──────────────┘
+```
+
+- **Faits** (activités, allures) = ré-injectés **frais** depuis Strava à
+  chaque message. **Ne jamais les figer dans la mémoire Sheets.**
+- **Mémoire Sheets** = uniquement la **continuité de conversation**.
+  (Un bug « dernière sortie fausse » venait d'anciennes réponses stockées qui
+  se renforçaient toutes seules → mémoire nettoyée, et prompt recalé sur les
+  données fraîches.)
+
+---
+
+## 4. Composants
+
+### 4.1 Fonction Vercel — intégration Strava directe
+- Projet Vercel : **`strava-proxy-one`** (URL `https://strava-proxy-one.vercel.app`).
+- Fichier : `api/strava.js` (fonction serverless).
+- Endpoints :
+  - `GET /api/strava?key=<API_KEY>&per_page=100` → liste des activités (brut Strava).
+  - `GET /api/strava?id=<id>&key=<API_KEY>` → détail d'une activité (laps).
+- Rafraîchit l'access token via le refresh token, protège l'accès par `key`.
+- **Variables d'env (dans Vercel, PAS dans le repo)** : `STRAVA_CLIENT_ID`
+  (= 225649), `STRAVA_CLIENT_SECRET`, `STRAVA_REFRESH_TOKEN`, `API_KEY`.
+
+### 4.2 n8n Cloud — le cerveau
+Instance : `lfp-digital.app.n8n.cloud`. Trois workflows :
+
+1. **Telegram coach** : Telegram Trigger → Sheets (historique) → activités via
+   **fonction Vercel** → météo (Open-Meteo) → Claude → réponse Telegram → sauvegarde Sheets.
+2. **Coach — chat (app)** : `POST /webhook/coach-chat`.
+   - Un **Switch** sur le message :
+     - `=== "/programme"` → branche **génération** : activités (Vercel) →
+       Claude génère le programme en **JSON strict** → **Clear** la feuille
+       Programme → écrit les nouvelles lignes (Append auto-map) → Respond.
+       (Clear placé **en tête de branche** pour ne pas couper le fil de données.)
+     - sinon → chat normal (même cerveau que Telegram) → `{ "reply": "..." }`.
+   - CORS : `Allowed Origins = *`. Respond With = **First Incoming Item**.
+3. **Coach — données** : `GET /webhook/coach-data`.
+   - Webhook → HTTP Request (**fonction Vercel**) → Google Sheets lecture de
+     l'onglet **Programme** (⚠️ option **Execute Once** activée) → nœud **Code**
+     de mise en forme → Respond (First Incoming Item).
+
+> Modèle Claude utilisé dans n8n : `claude-sonnet-5`.
+> ⚠️ La `key=` de la fonction Vercel est en clair dans les URL des nœuds n8n —
+> **à ranger dans une variable n8n** (TODO).
+
+### 4.3 Google Sheet « Running App »
+- Feuille principale : mémoire conversation (colonnes `Date / Role / Content`).
+- Onglet **`Programme`** (en-tête : `jour | type | detail | cible`) — source de
+  vérité du programme : le coach y écrit, je peux corriger à la main, l'app le lit.
+
+### 4.4 Frontends
+- **Web** (repo `coach-running-app`) : React + Vite, déployé sur **Vercel**.
+  Historique mais **version de référence = l'app native** maintenant.
+- **Native** (repo `coach-running-native`) : **React Native / Expo**, SDK 57.
+  C'est la version active, qu'on transforme en **vraie app (APK via EAS)**.
+  Entrée : `App.js` (le code de référence vient de mes dernières modifs Snack).
+
+---
+
+## 5. Contrats de données (front ↔ back)
+
+**`GET /webhook/coach-data`** renvoie :
+```json
+{
+  "seances":   [{ "date": "19 sept.", "date_iso": "2026-09-19", "type": "...",
+                  "distance": 9, "duree": "1h00", "allure": "6:37", "ressenti": "Bien" }],
+  "records":   [{ "label": "5 km", "valeur": "22:30" }],
+  "programme": [{ "jour": "...", "type": "...", "detail": "...", "cible": "..." }]
+}
+```
+**`POST /webhook/coach-chat`** : body `{ "message": "...", "userId": "dim" }`
+→ réponse `{ "reply": "..." }`.
+
+- `ressenti` : actuellement **déduit de la FC moyenne**, échelle 5 niveaux
+  (`Plaisir / Bien / Normal / Dur / Horrible`). Le ressenti **cliquable** (saisi
+  par moi dans l'app) n'est pas encore branché (TODO écriture).
+- `records` : approximés par bande de distance (meilleur temps sur sorties ~ X km),
+  pas les vrais « best efforts » Strava (TODO v2).
+
+---
+
+## 6. Design system (app)
+
+**Refonte du 18 oct. 2026** : objectif « moins marqué IA ». Après deux tirages de
+pistes visuelles, choix de Dim : **le standard des apps de running, bien fait**
+(référence de qualité : **Strava**). Détail complet dans **`DESIGN.md`** (et
+`PRODUCT.md` pour le contexte produit) : les lire avant toute modif visuelle.
+
+En bref : Material 3 sombre, cartes sans bordure (#121212 / #1E1E1E / #2A2A2A),
+**un seul orange maison #FF6A2B** (volontairement ≠ orange Strava) pour les actions,
+l'onglet actif et les barres de km ; Roboto, chiffres tabulaires, libellé au-dessus
+de la valeur ; barre d'onglets Material avec pastille, bouton chat flottant (FAB).
+**Interdit** : violet, dégradés, icône « sparkles », lueurs, petits labels en
+majuscules espacées.
+
+---
+
+## 7. Ce qui est FAIT ✅
+
+- Intégration Strava **directe et conforme** (fonction Vercel) — plus de 429/ban.
+- n8n rebranché sur la fonction Vercel ; **bot Telegram pleinement opérationnel**.
+- Webhook **coach-data** (séances + records + programme).
+- Webhook **coach-chat** avec commande **`/programme`** (génère + écrit la feuille).
+- **App web déployée** (Vercel) avec vraies données + chat.
+- **Portage Expo / React Native** : vraies données partout, semaine calendaire
+  lundi→dimanche (fuseau local géré), **historique de chat persistant**
+  (AsyncStorage), **input clavier corrigé** (KeyboardAvoidingView),
+  **cache** (affichage instantané + badge « maj… »).
+- Versions SDK alignées (Expo Go redescendu au SDK 55 de Snack).
+- **Build EAS Android OK** → premier APK installable (16 oct. 2026).
+- **Passage au SDK 57** (18 oct.) pour tester avec l'Expo Go à jour du Play Store.
+- **Chat** : champ visible au-dessus du clavier (Android plein écran), saisie sur
+  plusieurs lignes, historique local qui n'est plus écrasé au démarrage
+  (choix : historique **local au téléphone seulement**).
+- **Refonte visuelle** (18 oct.) : voir section 6. Bouton Retour Android géré,
+  prochaine séance calculée d'après la date du jour, « tirer pour rafraîchir »
+  + rechargement au retour dans l'app, bandeau hors ligne / démo sur tous les
+  onglets, plus aucun faux record affiché.
+- **APK de la refonte** buildé (18 oct.) : premier build en SDK 57, OK.
+
+---
+
+## 8. Ce qui RESTE à faire (TODO)
+
+### ✅ RÉSOLU (16 oct. 2026) — build EAS Android
+Erreur qu'on avait (phase « Run gradlew ») :
+`build.gradle line 14 > Cannot invoke method getAbsolutePath() on null object`.
+
+**Vraie cause : versions incohérentes**, pas l'icône (icon.png était bon, 1024×1024).
+`package.json` déclarait Expo SDK 55 avec `react-native 0.81.0` / `react 19.1.0`
+(versions du SDK 54). La ligne 14 cherche le paquet `hermes-compiler`, qui n'existe
+qu'à partir de React Native 0.83 → chemin vide → erreur « null ».
+
+Correctif (branche `fix/eas-build-deps`) : `npx expo install --fix` (RN 0.83.10,
+React 19.2.0, modules expo-* en 55.x), ajout de `expo-font`, `package-lock.json`
+et `.gitignore` commités, projet EAS lié dans `app.json` (`extra.eas.projectId`).
+`npx expo-doctor` : 20/20.
+
+**Le build se lance maintenant depuis le Mac** (Node dispo via nvm, sans admin),
+plus besoin de Codespaces :
+```
+npx eas-cli@latest login
+npx eas-cli@latest build -p android --profile preview
+```
+**Pousser sur GitHub depuis le Mac :** l'outil `gh` est installé dans
+`~/.local/bin/gh` (sans admin) et connecté au compte `dimlzo` (connexion via
+navigateur/Google, `gh auth login --web`). Un simple `git push` suffit.
+
+**Règle :** après toute ajout/maj de dépendance → `npx expo install --fix` puis
+`npx expo-doctor` avant de builder.
+
+### Ensuite
+- **Ressenti cliquable** (brique « écriture ») : qualifier une séance en 1 tap
+  dans l'app. Prévu : feuille « Ressentis » (`activity_id / ressenti`) + webhook
+  `set-ressenti` + fusion avec les données Strava à l'affichage (le ressenti
+  manuel remplace l'estimation FC).
+- **Sécuriser la `key=`** de la fonction Vercel (variable n8n au lieu de l'URL en clair).
+- **Records v2** : vrais best efforts Strava (via le détail d'activité).
+- Finaliser **icône / splash**.
+- Plus tard : notifications, suggestions rapides dans le chat.
+  (« Cible » : réglé, c'est une distance, affichée telle quelle.)
+
+---
+
+## 9. Secrets & environnement (NE PAS committer)
+
+Rien de sensible ne doit finir dans le repo. Où vivent les secrets :
+- **Vercel (env vars)** : `STRAVA_CLIENT_SECRET`, `STRAVA_REFRESH_TOKEN`,
+  `API_KEY`, `STRAVA_CLIENT_ID` (225649, peu sensible).
+- **n8n** : credentials Claude API, Google Sheets, (plus de credential Strava —
+  volontairement supprimée pour la conformité).
+- **Codespaces (session)** : `EXPO_TOKEN` (jeton d'accès Expo, régénérable sur
+  expo.dev/settings/access-tokens ; à refaire après réouverture de Codespaces).
+- Le `client_secret` et le `refresh_token` Strava ont déjà été **régénérés** une
+  fois (après avoir été visibles en clair). Les valeurs vivantes ne sont que
+  dans Vercel.
+
+---
+
+## 10. Repos & outils
+
+- GitHub `dimlzo/coach-running-native` — app Expo/RN (cible du build EAS).
+- GitHub `dimlzo/coach-running-app` — app web Vite (déployée Vercel).
+- Vercel `strava-proxy-one` — la fonction d'intégration Strava.
+- n8n Cloud `lfp-digital.app.n8n.cloud` — le cerveau (3 workflows).
+- Outils navigateur : Codespaces (dev + build), Hoppscotch (tester les webhooks),
+  Expo Go (tester l'app sur Android).
+
+**Fichiers du repo natif :** `App.js` (tout le code), `index.js`,
+`package.json`, `app.json`, `eas.json`, `assets/icon.png`.
