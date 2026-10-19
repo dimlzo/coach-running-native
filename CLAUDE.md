@@ -179,6 +179,7 @@ majuscules espacées.
   prochaine séance calculée d'après la date du jour, « tirer pour rafraîchir »
   + rechargement au retour dans l'app, bandeau hors ligne / démo sur tous les
   onglets, plus aucun faux record affiché.
+- **APK de la refonte** buildé (18 oct.) : premier build en SDK 57, OK.
 
 ---
 
@@ -204,6 +205,10 @@ plus besoin de Codespaces :
 npx eas-cli@latest login
 npx eas-cli@latest build -p android --profile preview
 ```
+**Pousser sur GitHub depuis le Mac :** l'outil `gh` est installé dans
+`~/.local/bin/gh` (sans admin) et connecté au compte `dimlzo` (connexion via
+navigateur/Google, `gh auth login --web`). Un simple `git push` suffit.
+
 **Règle :** après toute ajout/maj de dépendance → `npx expo install --fix` puis
 `npx expo-doctor` avant de builder.
 
@@ -215,7 +220,6 @@ npx eas-cli@latest build -p android --profile preview
 - **Sécuriser la `key=`** de la fonction Vercel (variable n8n au lieu de l'URL en clair).
 - **Records v2** : vrais best efforts Strava (via le détail d'activité).
 - Finaliser **icône / splash**.
-- **Rebuilder l'APK** avec la refonte (le dernier APK date d'avant).
 - Plus tard : notifications, suggestions rapides dans le chat.
   (« Cible » : réglé, c'est une distance, affichée telle quelle.)
 
